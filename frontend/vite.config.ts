@@ -7,8 +7,15 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, 'src/entry/popup/popup.html'),
+        popup: resolve(__dirname, 'src/popup/popup.html'),
+        background: resolve(__dirname, 'src/entry/background/background.js'),
+        contentScript: resolve(__dirname, 'src/entry/content/contentScript.js'),
+        externalSitesHandler: resolve(__dirname, 'src/entry/external/externalSitesHandler.js')
       },
+      output: {
+        entryFileNames: '[name].js',
+        assetFileNames: `[name].[ext]`,
+      }
     },
   },
 })

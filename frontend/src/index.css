@@ -1,0 +1,76 @@
+@import "tailwindcss";
+/* @config "../tailwind.config.js"; */
+
+@theme {
+  --color-DYNAMIC-accent2: rgba(89, 173, 122, 1);
+  --color-DYNAMIC-BACKGROUND: rgba(248, 250, 252, 0.5);
+  --color-DYNAMIC-BG: rgba(248, 250, 252, 1);
+  --color-DYNAMIC-NEUTRALGRAY: rgba(100, 116, 139, 1);
+  --color-DYNAMIC-PRIMARY: rgba(8, 51, 68, 1);
+  --color-DYNAMIC-SECOND: rgba(236, 253, 245, 1);
+  --color-DYNAMIC-TERT: rgba(175, 218, 198, 1);
+
+  --animate-fade-in: fade-in 1s var(--animation-delay, 0s) ease forwards;
+  --animate-fade-up: fade-up 1s var(--animation-delay, 0s) ease forwards;
+  --animate-shimmer: shimmer 8s infinite;
+
+  /* Font stuff */
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: Arial, sans-serif;
+
+  @keyframes fade-in {
+    0% { opacity: 0; transform: translateY(-10px); }
+    100% { opacity: 1; transform: none; }
+  }
+  
+  @keyframes fade-up {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: none; }
+  }
+}
+
+/* 3. Keep your :root variables for the component logic */
+:root {
+  /* --variable-collection-DYNAMIC-ACCENT: var(--variable-collection-DYNAMIC-NEUTRAL);
+  --variable-collection-DYNAMIC-accent2: rgba(89, 173, 122, 1); */
+  /* ... keep the rest of your raw variables here ... */
+  --variable-collection-DYNAMIC-ACCENT: var(
+      --variable-collection-DYNAMIC-NEUTRAL
+  );
+  --variable-collection-DYNAMIC-accent2: rgba(89, 173, 122, 1);
+  --variable-collection-DYNAMIC-BACKGROUND: rgba(248, 250, 252, 0.5);
+  --variable-collection-DYNAMIC-BG: rgba(248, 250, 252, 1);
+  --variable-collection-DYNAMIC-NEUTRAL: var(
+      --variable-collection-DYNAMIC-SECONDA
+  );
+  --variable-collection-DYNAMIC-NEUTRALGRAY: rgba(100, 116, 139, 1);
+  --variable-collection-DYNAMIC-PRIMARY: rgba(8, 51, 68, 1);
+  --variable-collection-DYNAMIC-SECOND: rgba(236, 253, 245, 1);
+  --variable-collection-DYNAMIC-SECONDA: rgba(16, 185, 129, 1);
+  --variable-collection-DYNAMIC-SECONDARY: var(
+      --variable-collection-DYNAMIC-PRIMARY
+  );
+  --variable-collection-DYNAMIC-TERT: rgba(175, 218, 198, 1);
+  --variable-collection-LIGHT-accent2: rgba(171, 155, 142, 1);
+  --variable-collection-LIGHT-BASE: rgba(224, 222, 205, 1);
+  --variable-collection-LIGHT-COMPONENT: rgba(210, 194, 150, 1);
+  --variable-collection-LIGHT-DARKACCENT: rgba(141, 144, 162, 1);
+  --variable-collection-LIGHT-darkaccent2: rgba(134, 144, 162, 1);
+  --variable-collection-LIGHT-SUB: rgba(189, 209, 211, 1);
+  --variable-collection-LIGHT-TEXT: rgba(32, 41, 94, 1);
+}
+
+/* 4. Custom utility classes */
+@utility all-unset {
+  all: unset;
+}
+
+@utility custom-scrollbar {
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--variable-collection-DYNAMIC-PRIMARY);
+    border-radius: 10px;
+  }
+}

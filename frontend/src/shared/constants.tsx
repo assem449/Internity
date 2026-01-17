@@ -28,16 +28,6 @@ export const DUMMY_APPLICATIONS = [
     skillTags: ["Java", "Spring Boot", "SQL"],
     salary: "$50/hr"
   },
-  {
-    id: "3",
-    company: "Global Finance Corp",
-    role: "Full Stack Intern",
-    status: "Applied", // Use for dynamic styling (e.g., bg-DYNAMIC-accent2)
-    date: "2026-01-10",
-    location: "Hybrid",
-    skillTags: ["Python", "Django", "JavaScript"],
-    salary: "$40/hr"
-  }
 ];
 
 export const DUMMY_CAREER_TRAJECTORY = {

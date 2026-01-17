@@ -3,8 +3,8 @@ interface BehaviorAnalytics {
     appliedCount: number;
     viewedCount: number;
     topRole: string;
-    interviewRate: string;
-    responseTime: string;
+    interviewRate?: string;
+    responseTime?: string;
 }
 
 export interface AnalyticsProps {

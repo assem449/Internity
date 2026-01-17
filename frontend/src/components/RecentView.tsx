@@ -21,7 +21,7 @@ export const RecentView = ({
         >
             {/* LABEL SECTION */}
             <div className="font-sans italic text-DYNAMIC-PRIMARY text-sm leading-normal">
-                Recent Job Viewed
+                RECENT JOB VIEWED
             </div>
 
             {/* will display company, title and skills */}

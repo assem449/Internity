@@ -10,7 +10,7 @@
   },
   "action": {
     "default_title": "Internship Tracker",
-    "default_popup": "popup.html"
+    "default_popup": "src/popup/popup.html"
   },
   "content_scripts": [
     {

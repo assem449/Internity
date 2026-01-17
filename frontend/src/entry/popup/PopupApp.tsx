@@ -1,8 +1,9 @@
-import { DUMMY_ANALYTICS, DUMMY_CAREER_TRAJECTORY, DUMMY_SUGGESTIONS } from "../../shared/constants";
+import { DUMMY_ANALYTICS, DUMMY_APPLICATIONS, DUMMY_CAREER_TRAJECTORY, DUMMY_SUGGESTIONS } from "../../shared/constants";
 import { Analytics } from "../../components/Analytics";
 import { CareerTrajectory } from "../../components/CareerTrajectory";
 import { Header } from "../../components/Header";
 import { Suggestions } from "../../components/Suggestions";
+import { RecentView } from "../../components/RecentView";
 
 export interface PopupProps {
     className?: string;
@@ -30,6 +31,7 @@ export const PopupApp = ({ className = "" }: PopupProps) => {
                 <Header />
                 <Analytics data={DUMMY_ANALYTICS} />
                 <CareerTrajectory data={DUMMY_CAREER_TRAJECTORY} />
+                <RecentView data={DUMMY_APPLICATIONS} />
                 <Suggestions data={DUMMY_SUGGESTIONS} />
             </div>
         </div>

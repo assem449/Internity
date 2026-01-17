@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Internity - Behavior Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="container">
+        <h2>📊 Internity Tracker</h2>
+        <p class="subtitle">Behavior-driven internship recommendations</p>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-label">Total Events</div>
+                <div id="eventCount" class="stat-value">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Job Views</div>
+                <div id="jobViewCount" class="stat-value">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Unique Jobs</div>
+                <div id="uniqueJobCount" class="stat-value">0</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Recent Activity</h3>
+            <div id="recentEvents" class="event-list">
+                <p class="empty">No events recorded yet</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Tracked Jobs</h3>
+            <div id="jobsList" class="jobs-list">
+                <p class="empty">No jobs tracked yet</p>
+            </div>
+        </div>
+
+        <button id="clear" class="btn-clear">🗑️ Clear Data</button>
+        <p class="footer">Internity © 2026</p>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

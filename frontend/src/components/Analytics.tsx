@@ -1,15 +1,21 @@
-interface BehaviorAnalytics {
-    totalTracked: number;
-    appliedCount: number;
-    viewedCount: number;
-    topRole: string;
-    interviewRate?: string;
-    responseTime?: string;
+// interface BehaviorAnalytics {
+//     totalTracked: number;
+//     appliedCount: number;
+//     viewedCount: number;
+//     topRole: string;
+//     interviewRate?: string;
+//     responseTime?: string;
+// }
+
+interface UpdatedAnalytics {
+    eventCount: number,
+    jobViewCount: number,
+    uniqueJobs: number
 }
 
 export interface AnalyticsProps {
     className?: string;
-    data: BehaviorAnalytics;
+    data: UpdatedAnalytics;
 }
 
 export const Analytics = ({ className = "", data }: AnalyticsProps) => {
@@ -29,7 +35,8 @@ export const Analytics = ({ className = "", data }: AnalyticsProps) => {
                 </span>
                 <div className="flex items-center justify-center h-full px-2 bg-DYNAMIC-accent2 rounded-[5px] border border-solid border-DYNAMIC-PRIMARY">
                     <span className="font-sans font-bold text-DYNAMIC-SECOND text-sm text-center leading-tight uppercase">
-                        {data.topRole}
+                        {/* {data.topRole} */}
+                        SOFTWARE ENGINEER
                     </span>
                 </div>
             </div>
@@ -43,7 +50,7 @@ export const Analytics = ({ className = "", data }: AnalyticsProps) => {
                     {/* Viewed Stats */}
                     <div className="flex flex-col flex-1 items-center justify-center bg-DYNAMIC-accent2 rounded-[5px] border border-solid border-DYNAMIC-PRIMARY py-1">
                         <span className="font-sans font-bold text-DYNAMIC-SECOND text-xl">
-                            {data.viewedCount}
+                            {data.jobViewCount}
                         </span>
                         <span className="font-sans italic text-DYNAMIC-SECOND text-[8px] uppercase">
                             Viewed
@@ -53,10 +60,10 @@ export const Analytics = ({ className = "", data }: AnalyticsProps) => {
                     {/* Applied Stats */}
                     <div className="flex flex-col flex-1 items-center justify-center bg-DYNAMIC-accent2 rounded-[5px] border border-solid border-DYNAMIC-PRIMARY py-1">
                         <span className="font-sans font-bold text-DYNAMIC-SECOND text-xl">
-                            {data.appliedCount}
+                            {data.uniqueJobs}
                         </span>
                         <span className="font-sans italic text-DYNAMIC-SECOND text-[8px] uppercase">
-                            Applied
+                            Unique
                         </span>
                     </div>
                 </div>

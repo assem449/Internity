@@ -53,7 +53,7 @@ export const DUMMY_SUGGESTIONS = [
     location: "Remote",
     skillTags: ["JavaScript", "React", "CSS"],
     salary: "$45/hr",
-    logoUrl: "../public/INTERNITY_BACKING.svg"
+    logoUrl: "../../public/INTERNITY_BACKING.svg"
   },
   {
     id: "2",
@@ -62,7 +62,7 @@ export const DUMMY_SUGGESTIONS = [
     location: "New York, NY",
     skillTags: ["Java", "Spring Boot", "SQL"],
     salary: "$50/hr",
-    logoUrl: "../public/INTERNITY_BACKING.svg"
+    logoUrl: "../../public/INTERNITY_BACKING.svg"
   },
   {
     id: "3",
@@ -71,7 +71,7 @@ export const DUMMY_SUGGESTIONS = [
     location: "Hybrid",
     skillTags: ["Python", "Django", "JavaScript"],
     salary: "$40/hr",
-    logoUrl: "../public/INTERNITY_BACKING.svg"
+    logoUrl: "../../public/INTERNITY_BACKING.svg"
   },
   {
     id: "4",
@@ -80,7 +80,7 @@ export const DUMMY_SUGGESTIONS = [
     location: "San Francisco, CA",
     skillTags: ["Python", "Machine Learning", "Pandas"],
     salary: "$55/hr",
-    logoUrl: "../public/INTERNITY_BACKING.svg"
+    logoUrl: "../../public/INTERNITY_BACKING.svg"
   }
 ];
 

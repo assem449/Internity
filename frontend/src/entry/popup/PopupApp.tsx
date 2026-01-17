@@ -1,14 +1,14 @@
-import { DUMMY_ANALYTICS, DUMMY_CAREER_TRAJECTORY, DUMMY_SUGGESTIONS } from "../constants";
-import { Analytics } from "./Analytics";
-import { CareerTrajectory } from "./CareerTrajectory";
-import { Header } from "./Header";
-import { Suggestions } from "./Suggestions";
+import { DUMMY_ANALYTICS, DUMMY_CAREER_TRAJECTORY, DUMMY_SUGGESTIONS } from "../../shared/constants";
+import { Analytics } from "../../components/Analytics";
+import { CareerTrajectory } from "../../components/CareerTrajectory";
+import { Header } from "../../components/Header";
+import { Suggestions } from "../../components/Suggestions";
 
 export interface PopupProps {
     className?: string;
 }
 
-export const Popup = ({ className = "" }: PopupProps) => {
+export const PopupApp = ({ className = "" }: PopupProps) => {
     return (
         /* 1. Main Wrapper: 
            Standardize width to 430px (typical for extension popups).
@@ -18,7 +18,7 @@ export const Popup = ({ className = "" }: PopupProps) => {
             className={`
                 w-[430px] min-h-[632px] overflow-x-hidden
                 bg-DYNAMIC-BACKGROUND backdrop-blur-sm
-                flex flex-col items-center
+                flex flex-col items-center h-full
                 ${className}
             `}
         >

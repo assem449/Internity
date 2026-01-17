@@ -1,10 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "My Extension",
+  "name": "Internity",
   "version": "0.1.0",
   "action": {
-    "default_popup": "popup.html"
-  },
-  "options_page": "options.html",
-  "permissions": []
+    "default_popup": "src/entry/popup/popup.html"
+  }
 }

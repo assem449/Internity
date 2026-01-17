@@ -1,4 +1,4 @@
-import { Internship, type InternshipProps } from "./Internship";
+import { Internship } from "./Internship";
 import type { InternshipSuggestion } from "./Suggestions";
 
 export interface RecentViewProps {
@@ -24,6 +24,7 @@ export const RecentView = ({
                 Recent Job Viewed
             </div>
 
+            {/* will display company, title and skills */}
             <Internship
                     key={data[data.length-1].id}
                     data={data[data.length-1]}

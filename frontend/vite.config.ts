@@ -1,21 +1,24 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [react()],
   build: {
     rollupOptions: {
       input: {
+        // Point this to your source popup.html
         popup: resolve(__dirname, 'src/popup/popup.html'),
         background: resolve(__dirname, 'src/entry/background/background.js'),
         contentScript: resolve(__dirname, 'src/entry/content/contentScript.js'),
         externalSitesHandler: resolve(__dirname, 'src/entry/external/externalSitesHandler.js')
       },
       output: {
-        entryFileNames: '[name].js',
+        // This flattens the structure so popup.html ends up in the root of /dist
+        entryFileNames: `[name].js`,
+        chunkFileNames: `[name].js`,
         assetFileNames: `[name].[ext]`,
-      }
+      },
     },
+    outDir: 'dist',
+    emptyOutDir: true,
   },
-})
+});

@@ -45,7 +45,7 @@ function detectJobPostingPage() {
   };
 }
 
-// Extract job posting details from the page
+// Extract job posting details from the page and store them
 function extractJobPostingDetails() {
   const details = {
     title: null,
@@ -91,40 +91,93 @@ function extractJobPostingDetails() {
     if (headings.length > 0) titleEl = headings[0];
   }
   
-  // Company selectors
-  let companyEl = jobContainer.querySelector('[href*="/company/"]');
-  if (!companyEl) companyEl = jobContainer.querySelector('a.topcard__org-name-link');
+  // Company selectors - try multiple strategies
+  let companyEl = null;
+  
+  // Strategy 1: Look for company link
+  const companyLink = Array.from(jobContainer.querySelectorAll('a')).find(a => {
+    const href = a.href || '';
+    const text = a.textContent?.trim();
+    return href.includes('/company/') && text && text.length > 1 && text.length < 100;
+  });
+  if (companyLink) companyEl = companyLink;
+  
+  // Strategy 2: Look for text that appears to be a company name
+  // Company names are typically 2-50 characters, don't contain special keywords
   if (!companyEl) {
-    // Look for company name - usually a link with company text
-    const links = Array.from(jobContainer.querySelectorAll('a')).filter(a => 
-      a.href.includes('/company/')
-    );
-    if (links.length > 0) companyEl = links[0];
+    const allElements = Array.from(jobContainer.querySelectorAll('div, span, a')).filter(el => {
+      const text = el.textContent?.trim();
+      return text && 
+             text.length > 2 && 
+             text.length < 80 &&
+             !text.match(/^\d+/) &&
+             !text.includes('Apply') &&
+             !text.includes('Followers') &&
+             !text.includes('Save') &&
+             !text.includes('message') &&
+             el.children.length === 0; // Leaf nodes only
+    });
+    
+    // Filter for likely company names
+    const likelyCompanies = allElements.filter(el => {
+      const text = el.textContent?.trim();
+      return text && !text.match(/^[a-z]/); // Start with capital letter
+    });
+    
+    if (likelyCompanies.length > 0) {
+      companyEl = likelyCompanies[0];
+    }
   }
   
   // Location selectors
-  let locationEl = jobContainer.querySelector('span.job-details-jobs-unified-top-card__location');
-  if (!locationEl) locationEl = jobContainer.querySelector('[data-test-id*="location"]');
+  let locationEl = null;
+  
+  // Try to find location in common patterns
+  const locSelectors = [
+    'span.job-details-jobs-unified-top-card__location',
+    '[data-test-id*="location"]',
+    'span[data-test-id*="job-details-location"]'
+  ];
+  
+  for (const selector of locSelectors) {
+    locationEl = jobContainer.querySelector(selector);
+    if (locationEl) break;
+  }
+  
+  // Fallback: search through text content for location patterns
   if (!locationEl) {
-    // Look for location pattern (City, State or Remote)
-    const spans = Array.from(jobContainer.querySelectorAll('span')).find(s => {
-      const text = s.textContent?.trim();
-      return text && (/^[A-Z][a-z]+,\s*[A-Z]{2}$|^Remote$|^[A-Z][a-z]+,\s*[A-Z][a-z]+$/.test(text));
+    const textElements = Array.from(jobContainer.querySelectorAll('span, div')).filter(el => {
+      const text = el.textContent?.trim();
+      return text && text.length < 50 && text.length > 2;
     });
-    if (spans) locationEl = spans;
+    
+    locationEl = textElements.find(el => {
+      const text = el.textContent?.trim();
+      return text && /^[\w\s]+,\s*[\w\s]+$/.test(text) || text === 'Remote' || text.includes('On-site');
+    });
   }
   
   if (titleEl) {
     const title = titleEl.textContent?.trim();
-    // Filter out obvious non-job titles
     if (title && !title.includes('notification') && !title.match(/^\d+$/) && title.length > 5) {
       details.title = title;
     }
   }
-  if (companyEl) details.company = companyEl.textContent?.trim();
-  if (locationEl) details.location = locationEl.textContent?.trim();
+  if (companyEl) {
+    const company = companyEl.textContent?.trim();
+    // Filter out empty or very short text
+    if (company && company.length > 1 && !company.match(/^[\d\s]*$/) && company !== 'LinkedIn') {
+      details.company = company;
+    }
+  }
+  if (locationEl) {
+    const location = locationEl.textContent?.trim();
+    if (location && location.length > 1) {
+      details.location = location;
+    }
+  }
   
-  log("Extraction attempt - Title:", details.title, "Company:", details.company);
+  log("Extraction attempt - Title:", details.title, "Company:", details.company, "Location:", details.location);
   
   return details;
 }
@@ -152,49 +205,22 @@ if (pageInfo.isLinkedInJobs) {
       }
     }
   );
-  
-  // Expose test function for debugging
-  window.interiorityTest = () => {
-    log("🧪 RUNNING TEST MODE");
-    const testJob = {
-      jobId: "test-" + Date.now(),
-      title: "Test Software Engineer Position",
-      company: "Test Company",
-      location: "San Francisco, CA",
-      salary: "$120K - $150K",
-      seniority: "Mid-level"
-    };
-    
-    chrome.runtime.sendMessage(
-      {
-        type: "JOB_PAGE_VIEW",
-        data: testJob,
-        timestamp: Date.now()
-      },
-      (response) => {
-        log("✓ Test event sent", response);
-      }
-    );
-  };
-  
-  log("💡 Tip: Run window.interiorityTest() in console to test");
 }
 
 // Track Apply button clicks
 function setupApplyButtonTracking() {
-  // LinkedIn's apply button selectors (in order of preference)
-  const tryApplyButtonSelectors = [
-    '#jobs-apply-button-id',  // Most reliable - specific ID
-    'button[data-live-test-job-apply-button]',  // Data attribute
-    'button.jobs-apply-button',  // Class name
-    'button[aria-label*="Apply"]',  // Aria label
-    'button[aria-label*="Easy Apply"]',  // Easy Apply variant
+  // LinkedIn's apply button selectors
+  const applyButtonSelectors = [
+    'button[aria-label*="Easy Apply"]',
+    'button[aria-label*="Apply"]',
+    'button.jobs-apply-button',
+    '[data-live-test-job-apply-button]'
   ];
   
   let applyButton = null;
   
   // Try each selector
-  for (const selector of tryApplyButtonSelectors) {
+  for (const selector of applyButtonSelectors) {
     applyButton = document.querySelector(selector);
     if (applyButton) {
       log("✓ Found apply button with selector:", selector);
@@ -203,11 +229,11 @@ function setupApplyButtonTracking() {
   }
   
   if (!applyButton) {
-    log("⚠️ Could not find Apply button - will retry in 500ms");
-    // Retry after 500ms
+    log("⚠️ Could not find Apply button - will retry in 1000ms");
+    // Retry after 1 second
     setTimeout(() => {
       setupApplyButtonTracking();
-    }, 500);
+    }, 1000);
     return;
   }
   
@@ -230,42 +256,20 @@ function setupApplyButtonTracking() {
           lastApplyTimestamp: Date.now(),
           lastApplyUrl: url,
           expectingExternalNavigation: true
-        }, () => {
-          log("✓ Apply action stored in chrome.storage:", { jobId, url });
-          log("✓ Expecting external navigation within next 30 seconds...");
-          log("✓ Background worker monitoring for external navigation...");
         });
         
+        // Notify background to start Easy Apply timeout monitoring
         chrome.runtime.sendMessage(
           {
-            type: "USER_ACTION",
-            data: {
-              action: "APPLY_CLICKED",
-              jobId: jobId,
-              metadata: {
-                url: url,
-                timestamp: Date.now()
-              }
-            }
+            type: "START_EASY_APPLY_TIMEOUT",
+            data: { jobId: jobId }
           },
           (response) => {
             if (chrome.runtime.lastError) {
-              log("❌ Error sending apply click event:", chrome.runtime.lastError);
+              log("⚠️ Error starting Easy Apply timeout:", chrome.runtime.lastError);
             } else {
-              log("✓ Apply click recorded", response);              // Notify background to start Easy Apply timeout monitoring
-              chrome.runtime.sendMessage(
-                {
-                  type: "START_EASY_APPLY_TIMEOUT",
-                  data: { jobId: jobId }
-                },
-                (response) => {
-                  if (chrome.runtime.lastError) {
-                    log("⚠️ Error starting Easy Apply timeout:", chrome.runtime.lastError);
-                  } else {
-                    log("✓ Easy Apply timeout started");
-                  }
-                }
-              );            }
+              log("✓ Easy Apply timeout started");
+            }
           }
         );
       } else {
@@ -275,147 +279,6 @@ function setupApplyButtonTracking() {
     
     log("✓ Apply button tracking initialized");
   }
-}
-
-// Show a modal asking if the user applied
-function showApplicationConfirmationModal(jobId, pageUrl) {
-  // Check if modal already exists
-  if (document.getElementById('internity-apply-modal')) {
-    return;
-  }
-  
-  // Create modal HTML
-  const modalHTML = `
-    <div id="internity-apply-modal" style="
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10000;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    ">
-      <div style="
-        background: white;
-        padding: 32px;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-        max-width: 400px;
-        width: 90%;
-      ">
-        <h2 style="margin: 0 0 16px 0; font-size: 20px; color: #333;">Did you apply to this job?</h2>
-        <p style="margin: 0 0 24px 0; font-size: 14px; color: #666; line-height: 1.5;">
-          We detected you clicked the apply button. Please confirm your application status.
-        </p>
-        
-        <div style="display: flex; gap: 12px; flex-direction: column;">
-          <button id="internity-applied-yes" style="
-            padding: 12px 16px;
-            background: #31a24c;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-          ">✓ Yes, I Applied</button>
-          
-          <button id="internity-applied-doing" style="
-            padding: 12px 16px;
-            background: #0a66c2;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-          ">🔄 Currently Applying</button>
-          
-          <button id="internity-applied-no" style="
-            padding: 12px 16px;
-            background: #c91f16;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-          ">✕ No, Haven't Applied</button>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  // Add modal to page
-  document.body.insertAdjacentHTML('beforeend', modalHTML);
-  
-  const modal = document.getElementById('internity-apply-modal');
-  const yesBtn = document.getElementById('internity-applied-yes');
-  const doingBtn = document.getElementById('internity-applied-doing');
-  const noBtn = document.getElementById('internity-applied-no');
-  
-  // Add hover effects
-  [yesBtn, doingBtn, noBtn].forEach(btn => {
-    btn.addEventListener('mouseenter', () => {
-      btn.style.opacity = '0.8';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.opacity = '1';
-    });
-  });
-  
-  // Handle Yes button
-  yesBtn.addEventListener('click', () => {
-    log("✅ User confirmed: Applied to job", jobId);
-    recordApplicationStatus(jobId, "APPLIED", pageUrl);
-    modal.remove();
-  });
-  
-  // Handle Currently Doing button
-  doingBtn.addEventListener('click', () => {
-    log("🔄 User confirmed: Currently applying to job", jobId);
-    recordApplicationStatus(jobId, "APPLIED", pageUrl);
-    modal.remove();
-  });
-  
-  // Handle No button
-  noBtn.addEventListener('click', () => {
-    log("✕ User confirmed: Did not apply to job", jobId);
-    recordApplicationStatus(jobId, "NOT_APPLIED", pageUrl);
-    modal.remove();
-  });
-}
-
-// Record application status
-function recordApplicationStatus(jobId, status, pageUrl) {
-  chrome.runtime.sendMessage(
-    {
-      type: "USER_ACTION",
-      data: {
-        action: status === "APPLIED" ? "APPLIED" : "SKIPPED",
-        jobId: jobId,
-        metadata: {
-          url: pageUrl,
-          timestamp: Date.now(),
-          source: "application_confirmation"
-        }
-      }
-    },
-    (response) => {
-      if (chrome.runtime.lastError) {
-        log("❌ Error recording application status:", chrome.runtime.lastError);
-      } else {
-        log("✓ Application status recorded:", status, response);
-      }
-    }
-  );
 }
 
 // Call setup initially
@@ -508,10 +371,10 @@ const checkUrlChange = () => {
           }, 1000);
           
           // Set up a timer to log job view after 25 seconds
-          log("⏳ Waiting 25 seconds before logging job view...");
+          log("⏳ Waiting 10 seconds before logging job view...");
           
           jobViewTimeout = setTimeout(() => {
-            log("✓ 25 seconds elapsed - logging job view");
+            log("✓ 10 seconds elapsed - logging job view");
             
             // Extract and log job view
             const jobDetails = extractJobPostingDetails();
@@ -528,13 +391,13 @@ const checkUrlChange = () => {
                   if (chrome.runtime.lastError) {
                     log("❌ Error sending message:", chrome.runtime.lastError);
                   } else {
-                    log("✓ Job view logged after 25 seconds", response);
+                    log("✓ Job view logged after 10 seconds", response);
                   }
                 }
               );
             }
             jobViewTimeout = null;
-          }, 25000); // 25 second delay
+          }, 10000); // 10 second delay
         }
       } else {
         log("❌ Not a LinkedIn Jobs page");

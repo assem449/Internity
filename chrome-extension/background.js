@@ -8,10 +8,11 @@ const log = (msg, data) => {
   if (DEBUG) console.log(`[Internity-BG] ${msg}`, data || "");
 };
 
-// Global variable to store Easy Apply timeout ID
+// Stores Easy Apply timeout - if user clicks Apply but stays on LinkedIn,
+// we wait 10 seconds then show confirmation popup
 let easyApplyTimeoutId = null;
 
-// Initialize storage on install
+// Initialize storage when extension is installed
 chrome.runtime.onInstalled.addListener(() => {
   log("Extension installed - initializing storage");
   chrome.storage.local.set({
@@ -22,14 +23,14 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Monitor tab updates to detect when user navigates away from LinkedIn to external site
+// Monitor tabs to detect when user navigates from LinkedIn to external job site
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = tab.url || changeInfo.url;
   
   if (url) {
     log(`[Tab ${tabId}] URL updated:`, url);
     
-    // Ignore Chrome internal URLs, about pages, and LinkedIn itself
+    // Ignore Chrome internal URLs and LinkedIn pages
     if (url.startsWith('chrome://') || url.startsWith('about:')) {
       log(`[Tab ${tabId}] Ignoring Chrome internal URL`);
       return;
@@ -40,39 +41,36 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       return;
     }
     
-    // Check if it's a real external site (http/https)
+    // External site detected - user left LinkedIn after clicking Apply
     if (url.startsWith('http://') || url.startsWith('https://')) {
       log(`[Tab ${tabId}] 🌐 External URL detected:`, url);
       
-      // Check storage for stored job ID AND that we're expecting external navigation
       chrome.storage.local.get(['lastApplyJobId', 'lastApplyTimestamp', 'timerStarted', 'lastExternalUrl', 'expectingExternalNavigation'], (result) => {
         log(`[Tab ${tabId}] Storage check - lastApplyJobId:`, result.lastApplyJobId, 'expectingExternalNavigation:', result.expectingExternalNavigation);
         
-        // Only proceed if we're expecting external navigation (user just clicked Apply and we're waiting for redirect)
+        // Only proceed if we're waiting for external navigation (they just clicked Apply)
         if (!result.expectingExternalNavigation) {
           log(`[Tab ${tabId}] ⚠️ Not expecting external navigation - ignoring this navigation`);
           return;
         }
         
-        // If this is a NEW external URL (different from last one), allow it even if timerStarted is true
         const isNewUrl = result.lastExternalUrl !== url;
         
         if (result.lastApplyJobId && (!result.timerStarted || isNewUrl)) {
           log(`[Tab ${tabId}] ✅ Found stored apply job ID:`, result.lastApplyJobId);
           log(`[Tab ${tabId}] 🌐 User navigated to external site:`, url);
-          log(`[Tab ${tabId}] ⏳ Starting 15-second timer...`);
+          log(`[Tab ${tabId}] ⏳ Starting 10-second timer...`);
           
-          // Clear the Easy Apply timeout since external navigation was detected
+          // Clear Easy Apply timeout - they left LinkedIn, so not using Easy Apply
           if (easyApplyTimeoutId) {
             clearTimeout(easyApplyTimeoutId);
             log(`[Tab ${tabId}] 🚫 Cleared Easy Apply timeout - external site detected`);
             easyApplyTimeoutId = null;
           }
           
-          // Capture the job ID to use in the setTimeout callback
           const jobId = result.lastApplyJobId;
           
-          // Mark that we've started the timer (prevent duplicates)
+          // Mark timer as started to prevent duplicates
           chrome.storage.local.set({
             externalApplicationUrl: url,
             timerStarted: true,
@@ -81,24 +79,26 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             log(`[Tab ${tabId}] Stored external URL and marked timer as started`);
           });
           
-          // Set a 30-second timeout to clear the expectingExternalNavigation flag
-          // This ensures the flag doesn't persist if user takes too long
+          // Safety timeout - reset flag after 30 seconds if user takes too long
           setTimeout(() => {
             chrome.storage.local.set({ expectingExternalNavigation: false });
             log(`[Tab ${tabId}] 🕐 30-second timeout elapsed - cleared expectingExternalNavigation flag`);
-          }, 30000);
-          // Start timer
+          }, 30000);  // 30000 milliseconds = 30 seconds
+          // Start timer - wait 15 seconds then show the confirmation popup
+          // This gives user time to read the job description on the company website
           setTimeout(() => {
             log(`[Tab ${tabId}] ⏰ 15 seconds elapsed - injecting modal into external site`);
             log(`[Tab ${tabId}] 🌐 External Application URL:`, url);
             
             // Clear the expectingExternalNavigation flag since we found the external site
+            // Turn off the "waiting for navigation" flag
             chrome.storage.local.set({ expectingExternalNavigation: false });
             
             // Inject the external sites handler script into the current tab
+            // This is like sending a messenger to the company website to show our popup
             chrome.scripting.executeScript({
-              target: { tabId: tabId },
-              files: ['external-sites-handler.js']
+              target: { tabId: tabId },              // Which tab to inject into
+              files: ['external-sites-handler.js']   // What code to inject
             }, () => {
               if (chrome.runtime.lastError) {
                 log(`[Tab ${tabId}] ❌ Error injecting script:`, chrome.runtime.lastError);
@@ -106,11 +106,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 log(`[Tab ${tabId}] ✅ Script injected successfully`);
                 
                 // Send message to show the modal
+                // Now that our code is on the company website, tell it to show the popup
                 chrome.tabs.sendMessage(tabId, {
-                  type: 'SHOW_APPLICATION_MODAL',
+                  type: 'SHOW_APPLICATION_MODAL',  // What action to take
                   data: {
-                    jobId: jobId,
-                    externalUrl: url
+                    jobId: jobId,                           // Which job they're applying to
+                    externalUrl: url,                       // What company website they're on
+                    startTimestamp: result.lastApplyTimestamp // When they first looked at the job (for time tracking)
                   }
                 }, (response) => {
                   if (chrome.runtime.lastError) {
@@ -130,18 +132,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Handle messages from content script and external sites
+// Handle messages from content scripts and external sites
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'RECORD_APPLICATION_STATUS') {
-    const { jobId, status, externalUrl } = request.data;
-    log(`Popup response: ${status} for job ${jobId}`);
-    recordApplicationStatus(jobId, status, externalUrl);
+    const { jobId, status, externalUrl, timeSpentSeconds } = request.data;
+    log(`Popup response: ${status} for job ${jobId}, time spent: ${timeSpentSeconds}s`);
+    recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds);
     sendResponse({ status: 'recorded' });
   } else if (request.type === 'START_EASY_APPLY_TIMEOUT') {
-    // Start 10-second timeout for Easy Apply detection
+    // Start 10-second timeout - if no external navigation, show Easy Apply modal
     const jobId = request.data.jobId;
     
-    // Clear any existing Easy Apply timeout
     if (easyApplyTimeoutId) {
       clearTimeout(easyApplyTimeoutId);
     }
@@ -151,13 +152,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     easyApplyTimeoutId = setTimeout(() => {
       log(`⏰ 10 seconds elapsed - no external navigation detected, triggering Easy Apply modal`);
       
-      // Get the current tab to inject modal
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs.length > 0) {
           const tabId = tabs[0].id;
           log(`Injecting Easy Apply modal into tab ${tabId}`);
           
-          // Send message to contentScript to show Easy Apply modal
           chrome.tabs.sendMessage(tabId, {
             type: 'SHOW_EASY_APPLY_MODAL',
             data: { jobId: jobId }
@@ -169,24 +168,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
           });
           
-          // Clear expectingExternalNavigation since we're showing the modal
           chrome.storage.local.set({ expectingExternalNavigation: false });
         }
       });
       
       easyApplyTimeoutId = null;
-    }, 10000); // 10 seconds
+    }, 15000);
     
     sendResponse({ status: 'timeout_started' });
   }
 });
 
-// Handle messages from content scripts
+// Handle page status and job view messages
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   log(`Message received from ${sender.url}:`, request.type);
   
   if (request.type === "PAGE_STATUS") {
-    // Store current page status
     chrome.storage.local.set({ currentPageStatus: request.data });
     sendResponse({ status: "status_received" });
   } else if (request.type === "JOB_PAGE_VIEW") {
@@ -194,6 +191,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ status: "recorded" });
   } else if (request.type === "USER_ACTION") {
     handleUserAction(request.data, sender.url, request.timestamp);
+    sendResponse({ status: "recorded" });
+  } else if (request.type === "SCROLL_MILESTONE") {
+    handleScrollMilestone(request.data, sender.url);
     sendResponse({ status: "recorded" });
   }
 });
@@ -208,14 +208,15 @@ function handleJobPageView(jobDetails, pageUrl, timestamp) {
     title: jobDetails.title,
     company: jobDetails.company,
     location: jobDetails.location,
+    scrollDepth: jobDetails.scrollDepth || 0,
+    scrollMilestones: jobDetails.scrollMilestones || [],
     pageUrl: pageUrl,
     timestamp: timestamp,
-    sessionId: null // Will be tracked for session analysis
+    sessionId: null
   };
   
   log("Recording JOB_VIEW event:", event);
   
-  // Store the event
   chrome.storage.local.get(["events"], (res) => {
     const events = res.events || [];
     events.push(event);
@@ -223,14 +224,16 @@ function handleJobPageView(jobDetails, pageUrl, timestamp) {
     log(`Total events stored: ${events.length}`);
   });
   
-  // Also store job posting details for future reference
+  // Also track this job in jobPostings dictionary with view count and scroll data
   if (jobDetails.jobId) {
     chrome.storage.local.get(["jobPostings"], (res) => {
       const postings = res.jobPostings || {};
       postings[jobDetails.jobId] = {
         ...jobDetails,
         firstViewedAt: timestamp,
-        viewCount: (postings[jobDetails.jobId]?.viewCount || 0) + 1
+        viewCount: (postings[jobDetails.jobId]?.viewCount || 0) + 1,
+        scrollDepth: jobDetails.scrollDepth || 0,
+        scrollMilestones: jobDetails.scrollMilestones || []
       };
       chrome.storage.local.set({ jobPostings: postings });
     });
@@ -242,7 +245,7 @@ function handleJobPageView(jobDetails, pageUrl, timestamp) {
  */
 function handleUserAction(actionData, pageUrl, timestamp) {
   const event = {
-    type: actionData.action, // "APPLIED", "SAVED", "SKIPPED", "SCROLL"
+    type: actionData.action,
     jobId: actionData.jobId,
     pageUrl: pageUrl,
     timestamp: timestamp,
@@ -259,39 +262,78 @@ function handleUserAction(actionData, pageUrl, timestamp) {
 }
 
 /**
- * Record application status from external site confirmation
+ * Record application status from Yes/No confirmation popup
  */
-function recordApplicationStatus(jobId, status, externalUrl) {
+function recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds) {
   const event = {
-    type: status, // "APPLIED" or "SKIPPED"
+    type: status,
     jobId: jobId,
     pageUrl: externalUrl || 'external_application_site',
     timestamp: Date.now(),
+    timeSpentSeconds: timeSpentSeconds,
     metadata: {
       source: externalUrl === 'easy_apply_on_linkedin' ? 'easy_apply_modal' : 'external_confirmation_modal',
       externalApplicationUrl: externalUrl
     }
   };
   
-  log(`Recording application status: ${status} for job ${jobId} on external site: ${externalUrl}`, event);
+  log(`Recording application status: ${status} for job ${jobId}, time spent: ${timeSpentSeconds}s`, event);
   
-  // Clear Easy Apply timeout if it's still running
   if (easyApplyTimeoutId) {
     clearTimeout(easyApplyTimeoutId);
     easyApplyTimeoutId = null;
     log(`Cleared Easy Apply timeout`);
   }
   
+  // Reset flags for next application
   chrome.storage.local.get(["events"], (res) => {
     const events = res.events || [];
     events.push(event);
     chrome.storage.local.set({ 
       events,
-      // Reset the timer flag and expectation so future applications work
       timerStarted: false,
       lastApplyJobId: null,
       lastApplyTimestamp: null,
       expectingExternalNavigation: false
     });
+  });
+}
+
+/**
+ * Handle scroll milestone event
+ * Tracks when users reach specific scroll depths (25%, 50%, 75%, 100%)
+ */
+function handleScrollMilestone(data, pageUrl) {
+  const event = {
+    type: "SCROLL_MILESTONE",
+    jobId: data.jobId,
+    milestone: data.milestone,
+    maxScrollDepth: data.maxScrollDepth,
+    pageUrl: pageUrl,
+    timestamp: data.timestamp
+  };
+  
+  log(`Recording scroll milestone: ${data.milestone}% for job ${data.jobId}`, event);
+  
+  chrome.storage.local.get(["events"], (res) => {
+    const events = res.events || [];
+    events.push(event);
+    chrome.storage.local.set({ events });
+  });
+  
+  // Update job posting with latest scroll data
+  chrome.storage.local.get(["jobPostings"], (res) => {
+    const postings = res.jobPostings || {};
+    if (postings[data.jobId]) {
+      postings[data.jobId].maxScrollDepth = data.maxScrollDepth;
+      if (!postings[data.jobId].scrollMilestones) {
+        postings[data.jobId].scrollMilestones = [];
+      }
+      if (!postings[data.jobId].scrollMilestones.includes(data.milestone)) {
+        postings[data.jobId].scrollMilestones.push(data.milestone);
+        postings[data.jobId].scrollMilestones.sort((a, b) => a - b);
+      }
+      chrome.storage.local.set({ jobPostings: postings });
+    }
   });
 }

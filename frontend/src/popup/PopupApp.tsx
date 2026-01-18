@@ -43,7 +43,7 @@ export const PopupApp = () => {
   if (!data) return <div className="p-10 text-white">Loading Internity...</div>;
 
   return (
-    <div className="w-[430px] min-h-[632px] bg-slate-900/60 blurred-bg text-white flex flex-col items-center">
+    <div className="w-[430px] min-h-[632px] bg-slate-900 blurred-bg text-white flex flex-col items-center">
       <div className="flex flex-col w-full px-6 py-7 gap-6">
         <Header />
 

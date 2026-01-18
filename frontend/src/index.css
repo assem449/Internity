@@ -61,7 +61,7 @@
   --variable-collection-LIGHT-TEXT: rgba(32, 41, 94, 1);
 
   scrollbar-width: thin; /* For Firefox */
-  scrollbar-color: var(--variable-collection-DYNAMIC-SECOND) var(--variable-collection-DYNAMIC-PRIMARY2); /* For Firefox */
+  scrollbar-color: var(--variable-collection-DYNAMIC-SECOND) transparent; /* For Firefox */
 }
 
 
@@ -71,8 +71,8 @@
 }
 
 ::-webkit-scrollbar-track {
-  /* background: transparent; Keeps it clean */
-  background: var(--variable-collection-DYNAMIC-PRIMARY2);
+  background: transparent;
+  /* background: #0f172b; */
 }
 
 ::-webkit-scrollbar-thumb {

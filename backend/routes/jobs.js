@@ -337,6 +337,34 @@ router.post('/scrape', async (req, res) => {
   }
 });
 
+router.get('/default', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+
+    const jobsFile = path.join(__dirname, '../data/default_jobs.json'); 
+    // ^ adjust path to wherever you placed the json
+
+    const raw = await fs.readFile(jobsFile, 'utf8');
+    const jobs = JSON.parse(raw);
+
+    // normalize fields so extension is consistent
+    const normalized = jobs.slice(0, limit).map(j => ({
+      job_url: j.url,
+      title: j.title,
+      company: j.company,
+      location: j.location,
+      companyLogo: j.companyLogo,
+    }));
+
+    res.json({ success: true, jobs: normalized, count: normalized.length });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+
+module.exports = router;
+
 /**
  * GET /api/jobs/:id
  * Get single job by ID
@@ -368,7 +396,7 @@ router.get('/default', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
-    const jobsFile = path.join(__dirname, '../../scraper/scraped_jobs.json'); 
+    const jobsFile = path.join(__dirname, '../data/default_jobs.json'); 
     // ^ adjust path to wherever you placed the json
 
     const raw = await fs.readFile(jobsFile, 'utf8');
@@ -380,13 +408,7 @@ router.get('/default', async (req, res) => {
       title: j.title,
       company: j.company,
       location: j.location,
-      description: j.description,
-      skills: j.required_skills || [],
-      metadata: {
-        source: 'linkedin',
-        scraped_at: j.scraped_at,
-        posted_date: j.posted_date,
-      }
+      companyLogo: j.companyLogo,
     }));
 
     res.json({ success: true, jobs: normalized, count: normalized.length });

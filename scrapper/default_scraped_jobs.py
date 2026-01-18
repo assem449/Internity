@@ -109,7 +109,7 @@ def save_jobs(jobs: list):
     "..",
     "backend",
     "data",
-    "scraped_jobs.json"
+    "default_jobs.json"
     )
     output_file = os.path.abspath(output_file)
     with open(output_file, "w", encoding="utf-8") as f:

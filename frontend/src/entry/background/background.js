@@ -111,7 +111,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             // Inject the external sites handler script into the current tab
             chrome.scripting.executeScript({
               target: { tabId: tabId },
-              files: ['external-sites-handler.js']
+              files: ['externalSitesHandler.js']
             }, () => {
               if (chrome.runtime.lastError) {
                 log(`[Tab ${tabId}] ❌ Error injecting script:`, chrome.runtime.lastError);

@@ -1,8 +1,29 @@
 {
   "manifest_version": 3,
-  "name": "Internity",
+  "name": "DEMO Internity",
   "version": "0.1.0",
+  "description": "Tracks job interactions on LinkedIn job pages.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": ["https://www.linkedin.com/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
-    "default_popup": "src/entry/popup/popup.html"
-  }
+    "default_title": "Internship Tracker",
+    "default_popup": "src/popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/jobs/*",
+      "https://www.linkedin.com/jobs/view/*",
+      "https://www.linkedin.com/jobs/view/*/*"
+       ],
+      "js": ["contentScript.js", "externalSitesHandler.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "web_accessible_resources": [{
+    "resources": ["src/components/confirmation/confirmationPopup.html", "*.png", "*.svg"],
+    "matches": ["<all_urls>"]
+  }]
 }

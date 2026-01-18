@@ -16,7 +16,7 @@ export const Internship = ({ className = "", data }: InternshipProps) => {
             `}
         >
             {/* 1. LOGO SECTION - Flexible Container */}
-            <div className="flex-shrink-0 w-16 h-16 bg-DYNAMIC-PRIMARY rounded-[5px] flex items-center justify-center">
+            {/* <div className="flex-shrink-0 w-16 h-16 bg-DYNAMIC-PRIMARY rounded-[5px] flex items-center justify-center">
                 {data.logoUrl ? (
                     <img src={data.logoUrl} alt={data.company} className="w-12 h-12 object-contain" />
                 ) : (
@@ -24,9 +24,7 @@ export const Internship = ({ className = "", data }: InternshipProps) => {
                         LOGO
                     </span>
                 )}
-            </div>
-
-            {/* 2. CONTENT SECTION - Vertical Stack */}
+            </div> */}
             <div className="flex flex-col justify-center overflow-hidden">
                 <h3 className="font-sans font-bold text-DYNAMIC-PRIMARY text-lg truncate leading-tight">
                     {data.role}
@@ -35,8 +33,6 @@ export const Internship = ({ className = "", data }: InternshipProps) => {
                 <p className="font-sans italic text-DYNAMIC-PRIMARY text-sm truncate">
                     {data.company}
                 </p>
-
-                {/* 3. SKILLS SECTION - Auto-wrapping tags */}
                 <div className="mt-1 flex flex-wrap gap-1">
                     {data.skillTags.map((skill) => (
                         <span 

@@ -84,10 +84,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             chrome.storage.local.set({ expectingExternalNavigation: false });
             log(`[Tab ${tabId}] 🕐 30-second timeout elapsed - cleared expectingExternalNavigation flag`);
           }, 30000);  // 30000 milliseconds = 30 seconds
-          // Start timer - wait 15 seconds then show the confirmation popup
+          // Start timer - wait 10 seconds then show the confirmation popup
           // This gives user time to read the job description on the company website
           setTimeout(() => {
-            log(`[Tab ${tabId}] ⏰ 15 seconds elapsed - injecting modal into external site`);
+            log(`[Tab ${tabId}] ⏰ 10 seconds elapsed - injecting modal into external site`);
             log(`[Tab ${tabId}] 🌐 External Application URL:`, url);
             
             // Clear the expectingExternalNavigation flag since we found the external site
@@ -123,7 +123,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 });
               }
             });
-          }, 15000); // 15 seconds for testing
+          }, 10000); // 10 seconds
         } else {
           log(`[Tab ${tabId}] ⚠️ No stored apply job ID or timer already started for this URL - ignoring external navigation`);
         }
@@ -134,10 +134,22 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // Handle messages from content scripts and external sites
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'RECORD_APPLICATION_STATUS') {
-    const { jobId, status, externalUrl, timeSpentSeconds } = request.data;
-    log(`Popup response: ${status} for job ${jobId}, time spent: ${timeSpentSeconds}s`);
-    recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds);
+  if (request.type === 'ANALYTICS_DATA') {
+    const analyticsEvent = {
+      type: 'ANALYTICS',
+      ...request.data
+    };
+    log('Analytics data received:', analyticsEvent);
+    chrome.storage.local.get(['events'], (res) => {
+      const events = res.events || [];
+      events.push(analyticsEvent);
+      chrome.storage.local.set({ events });
+    });
+    sendResponse({ status: 'analytics_recorded' });
+  } else if (request.type === 'RECORD_APPLICATION_STATUS') {
+    const { jobId, status, externalUrl, timeSpentSeconds, scrollDepth } = request.data;
+    log(`Popup response: ${status} for job ${jobId}, time spent: ${timeSpentSeconds}s, scroll depth: ${scrollDepth}%`);
+    recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds, scrollDepth);
     sendResponse({ status: 'recorded' });
   } else if (request.type === 'START_EASY_APPLY_TIMEOUT') {
     // Start 10-second timeout - if no external navigation, show Easy Apply modal
@@ -173,7 +185,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
       
       easyApplyTimeoutId = null;
-    }, 15000);
+    }, 10000);
     
     sendResponse({ status: 'timeout_started' });
   }
@@ -212,7 +224,8 @@ function handleJobPageView(jobDetails, pageUrl, timestamp) {
     scrollMilestones: jobDetails.scrollMilestones || [],
     pageUrl: pageUrl,
     timestamp: timestamp,
-    sessionId: null
+    sessionId: null,
+    viewed: jobDetails.viewed || 1
   };
   
   log("Recording JOB_VIEW event:", event);
@@ -233,7 +246,8 @@ function handleJobPageView(jobDetails, pageUrl, timestamp) {
         firstViewedAt: timestamp,
         viewCount: (postings[jobDetails.jobId]?.viewCount || 0) + 1,
         scrollDepth: jobDetails.scrollDepth || 0,
-        scrollMilestones: jobDetails.scrollMilestones || []
+        scrollMilestones: jobDetails.scrollMilestones || [],
+        viewed: jobDetails.viewed || 1
       };
       chrome.storage.local.set({ jobPostings: postings });
     });
@@ -264,37 +278,47 @@ function handleUserAction(actionData, pageUrl, timestamp) {
 /**
  * Record application status from Yes/No confirmation popup
  */
-function recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds) {
-  const event = {
-    type: status,
-    jobId: jobId,
-    pageUrl: externalUrl || 'external_application_site',
-    timestamp: Date.now(),
-    timeSpentSeconds: timeSpentSeconds,
-    metadata: {
-      source: externalUrl === 'easy_apply_on_linkedin' ? 'easy_apply_modal' : 'external_confirmation_modal',
-      externalApplicationUrl: externalUrl
+function recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds, scrollDepth = 0) {
+  // Get the viewed flag from jobPostings storage
+  chrome.storage.local.get(["jobPostings"], (res) => {
+    const postings = res.jobPostings || {};
+    const jobPosting = postings[jobId] || {};
+    const viewed = jobPosting.viewed || 0;
+    
+    const event = {
+      type: status,
+      jobId: jobId,
+      pageUrl: externalUrl || 'external_application_site',
+      timestamp: Date.now(),
+      timeSpentSeconds: timeSpentSeconds,
+      scrollDepthPercent: scrollDepth,
+      applied: status === 'APPLIED' ? 1 : 0,
+      viewed: viewed,
+      metadata: {
+        source: externalUrl === 'easy_apply_on_linkedin' ? 'easy_apply_modal' : 'external_confirmation_modal',
+        externalApplicationUrl: externalUrl
+      }
+    };
+    
+    log(`Recording application status: ${status} for job ${jobId}, time spent: ${timeSpentSeconds}s, viewed: ${viewed}`, event);
+    
+    if (easyApplyTimeoutId) {
+      clearTimeout(easyApplyTimeoutId);
+      easyApplyTimeoutId = null;
+      log(`Cleared Easy Apply timeout`);
     }
-  };
-  
-  log(`Recording application status: ${status} for job ${jobId}, time spent: ${timeSpentSeconds}s`, event);
-  
-  if (easyApplyTimeoutId) {
-    clearTimeout(easyApplyTimeoutId);
-    easyApplyTimeoutId = null;
-    log(`Cleared Easy Apply timeout`);
-  }
-  
-  // Reset flags for next application
-  chrome.storage.local.get(["events"], (res) => {
-    const events = res.events || [];
-    events.push(event);
-    chrome.storage.local.set({ 
-      events,
-      timerStarted: false,
-      lastApplyJobId: null,
-      lastApplyTimestamp: null,
-      expectingExternalNavigation: false
+    
+    // Reset flags for next application
+    chrome.storage.local.get(["events"], (res2) => {
+      const events = res2.events || [];
+      events.push(event);
+      chrome.storage.local.set({ 
+        events,
+        timerStarted: false,
+        lastApplyJobId: null,
+        lastApplyTimestamp: null,
+        expectingExternalNavigation: false
+      });
     });
   });
 }

@@ -142,6 +142,37 @@ function getScrollDepthData() {
   };
 }
 
+/**
+ * Log a job view with viewed flag (1 for 10+ seconds, 0 for early exit)
+ */
+function logJobView(jobId, viewed) {
+  const jobDetails = extractJobPostingDetails();
+  
+  if (jobDetails.jobId && jobDetails.title) {
+    const scrollData = getScrollDepthData();
+    
+    chrome.runtime.sendMessage(
+      {
+        type: "JOB_PAGE_VIEW",
+        data: {
+          ...jobDetails,
+          scrollDepth: scrollData.maxScrollDepth,
+          scrollMilestones: scrollData.milestonesReached,
+          viewed: viewed
+        },
+        timestamp: Date.now()
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          log("❌ Error sending message:", chrome.runtime.lastError);
+        } else {
+          log(`✓ Job view logged with viewed=${viewed}`, response);
+        }
+      }
+    );
+  }
+}
+
 // Detect if we're on a LinkedIn job posting page
 function detectJobPostingPage() {
   const url = location.href;
@@ -381,12 +412,16 @@ function setupApplyButtonTracking() {
         log("✅ Apply button clicked for job:", jobId);
         log("👁️ User heading to external application page - timer will continue from when they first viewed the job");
         
+        // Capture scroll depth from LinkedIn page before they navigate away
+        const scrollData = getScrollDepthData();
+        
         // Store job ID and timestamp for tracking
         // Use currentJobStartTime for total time tracking (LinkedIn + external site)
         chrome.storage.local.set({
           lastApplyJobId: jobId,
           lastApplyTimestamp: currentJobStartTime || Date.now(),
           lastApplyUrl: url,
+          lastApplyScrollDepth: scrollData.maxScrollDepth,
           expectingExternalNavigation: true
         });
         
@@ -447,36 +482,10 @@ if (pageInfo.isJobDetail) {
   }
   
   jobViewTimeout = setTimeout(() => {
-    log("✓ 15 seconds elapsed - logging job view");
-    
-    const jobDetails = extractJobPostingDetails();
-    log("Job Posting Details:", jobDetails);
-    
-    if (jobDetails.jobId && jobDetails.title) {
-      // Include scroll depth data in job view event
-      const scrollData = getScrollDepthData();
-      
-      chrome.runtime.sendMessage(
-        {
-          type: "JOB_PAGE_VIEW",
-          data: {
-            ...jobDetails,
-            scrollDepth: scrollData.maxScrollDepth,
-            scrollMilestones: scrollData.milestonesReached
-          },
-          timestamp: Date.now()
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            log("❌ Error sending message:", chrome.runtime.lastError);
-          } else {
-            log("✓ Job view logged after 10 seconds", response);
-          }
-        }
-      );
-    }
+    log("✓ 10 seconds elapsed - logging job view");
+    logJobView(currentJobId, 1); // viewed: 1 = viewed for 10+ seconds
     jobViewTimeout = null;
-  }, 15000);
+  }, 10000);
 }
 
 // Monitor for URL changes (LinkedIn uses client-side routing)
@@ -493,6 +502,11 @@ const checkUrlChange = () => {
     if (jobViewTimeout) {
       clearTimeout(jobViewTimeout);
       log("🚫 Cancelled pending job view (navigated away)");
+      
+      // Log early exit with viewed: 0
+      if (currentJobId) {
+        logJobView(currentJobId, 0); // viewed: 0 = viewed for less than 10 seconds
+      }
     }
     
     // Debounce processing to avoid duplicate detections
@@ -583,13 +597,13 @@ const checkUrlChange = () => {
                   if (chrome.runtime.lastError) {
                     log("❌ Error sending message:", chrome.runtime.lastError);
                   } else {
-                    log("✓ Job view logged after 15 seconds", response);
+                    log("✓ Job view logged after 10 seconds", response);
                   }
                 }
               );
             }
             jobViewTimeout = null;
-          }, 15000);
+          }, 10000);
         }
       } else {
         log("❌ Not a LinkedIn Jobs page");
@@ -713,13 +727,17 @@ function showEasyApplyConfirmationModal(jobId) {
     const timeSpentMs = currentJobStartTime ? Date.now() - currentJobStartTime : null; // Time in milliseconds
     const timeSpentSeconds = timeSpentMs ? Math.round(timeSpentMs / 1000) : null; // Convert to seconds (divide by 1000)
     
+    // Get current scroll depth
+    const scrollData = getScrollDepthData();
+    
     chrome.runtime.sendMessage({
       type: 'RECORD_APPLICATION_STATUS',
       data: {
         jobId: jobId,
         status: 'APPLIED',
         externalUrl: 'easy_apply_on_linkedin',
-        timeSpentSeconds: timeSpentSeconds // Send how many seconds they spent on this job
+        timeSpentSeconds: timeSpentSeconds, // Send how many seconds they spent on this job
+        scrollDepth: scrollData.maxScrollDepth // Include scroll depth percentage
       }
     }, (response) => {
       log('Easy Apply response recorded:', response);
@@ -735,13 +753,17 @@ function showEasyApplyConfirmationModal(jobId) {
     const timeSpentMs = currentJobStartTime ? Date.now() - currentJobStartTime : null;
     const timeSpentSeconds = timeSpentMs ? Math.round(timeSpentMs / 1000) : null;
     
+    // Get current scroll depth
+    const scrollData = getScrollDepthData();
+    
     chrome.runtime.sendMessage({
       type: 'RECORD_APPLICATION_STATUS',
       data: {
         jobId: jobId,
         status: 'SKIPPED',
         externalUrl: 'easy_apply_on_linkedin',
-        timeSpentSeconds: timeSpentSeconds
+        timeSpentSeconds: timeSpentSeconds,
+        scrollDepth: scrollData.maxScrollDepth // Include scroll depth percentage
       }
     }, (response) => {
       log('Easy Apply response recorded:', response);
@@ -759,3 +781,43 @@ function removeEasyApplyModal() {
     log('Easy Apply modal removed');
   }
 }
+
+/**
+ * Build and return analytics object for the current job
+ */
+function buildAnalyticsObject(applied = 0) {
+  const timeSpentSeconds = currentJobStartTime ? Math.floor((Date.now() - currentJobStartTime) / 1000) : 0;
+  
+  return {
+    jobId: currentJobId,
+    timeSpentSeconds: timeSpentSeconds,
+    scrollDepthPercent: maxScrollDepth,
+    pageVisited: 1,
+    applied: applied,
+    timestamp: Date.now()
+  };
+}
+
+/**
+ * Send analytics data to background script for storage
+ */
+function sendAnalyticsData(applied = 0) {
+  const analytics = buildAnalyticsObject(applied);
+  chrome.runtime.sendMessage({
+    type: 'ANALYTICS_DATA',
+    data: analytics
+  }, (response) => {
+    log('Analytics data sent:', analytics);
+  });
+}
+
+/**
+ * Handle incoming messages from other scripts
+ */
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'GET_ANALYTICS_DATA') {
+    const analytics = buildAnalyticsObject();
+    log('Sending analytics data:', analytics);
+    sendResponse(analytics);
+  }
+});

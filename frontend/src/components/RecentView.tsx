@@ -1,4 +1,3 @@
-import { Internship } from "./Internship";
 // src/components/RecentView.tsx
 import { Internship } from "./Internship";
 import type { InternshipSuggestion } from "./Suggestions";
@@ -28,7 +27,6 @@ export const RecentView = ({ className = "", data }: RecentViewProps) => {
                 RECENT JOB VIEWED
             </div>
 
-            {/* will display company, title and skills */}
             <Internship
                 key={latestJob.id}
                 data={latestJob}

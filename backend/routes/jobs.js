@@ -5,6 +5,32 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
 
+
+/**
+ * POST /api/jobs/bulk
+ * Bulk insert/update jobs
+ * 
+ * Body:
+ * {
+ *   "source": "linkedin",
+ *   "jobs": [
+ *     {
+ *       "job_url": "...",
+ *       "title": "...",
+ *       "company": "...",
+ *       "location": "...",
+ *       "description": "...",
+ *       "skills": ["..."],
+ *       "responsibilities": ["..."],
+ *       "role_category": "...",
+ *       "seniority": "...",
+ *       "work_style": ["..."],
+ *       "metadata": {...}
+ *     }
+ *   ]
+ * }
+ */
+
 /**
  * POST /api/jobs/bulk
  * Bulk insert/update jobs
@@ -311,6 +337,34 @@ router.post('/scrape', async (req, res) => {
   }
 });
 
+router.get('/default', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+
+    const jobsFile = path.join(__dirname, '../data/default_jobs.json'); 
+    // ^ adjust path to wherever you placed the json
+
+    const raw = await fs.readFile(jobsFile, 'utf8');
+    const jobs = JSON.parse(raw);
+
+    // normalize fields so extension is consistent
+    const normalized = jobs.slice(0, limit).map(j => ({
+      job_url: j.url,
+      title: j.title,
+      company: j.company,
+      location: j.location,
+      companyLogo: j.companyLogo,
+    }));
+
+    res.json({ success: true, jobs: normalized, count: normalized.length });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+
+module.exports = router;
+
 /**
  * GET /api/jobs/:id
  * Get single job by ID
@@ -336,5 +390,32 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });
+
+
+router.get('/default', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+
+    const jobsFile = path.join(__dirname, '../data/default_jobs.json'); 
+    // ^ adjust path to wherever you placed the json
+
+    const raw = await fs.readFile(jobsFile, 'utf8');
+    const jobs = JSON.parse(raw);
+
+    // normalize fields so extension is consistent
+    const normalized = jobs.slice(0, limit).map(j => ({
+      job_url: j.url,
+      title: j.title,
+      company: j.company,
+      location: j.location,
+      companyLogo: j.companyLogo,
+    }));
+
+    res.json({ success: true, jobs: normalized, count: normalized.length });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 
 module.exports = router;

@@ -23,7 +23,7 @@
     }
   ],
   "web_accessible_resources": [{
-    "resources": ["confirmation-popup.html", "confirmation-popup.js"],
+    "resources": ["confirmation-popup.html", "confirmation-popup.js", "*.png", "*.svg"],
     "matches": ["<all_urls>"]
   }]
 }

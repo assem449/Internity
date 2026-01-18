@@ -57,7 +57,7 @@ export const PopupApp = () => {
         <Analytics data={data.analytics} />
         {/* <CareerTrajectory data={data.recentEvents} />  */}
         <RecentView data={data.trackedJobs} />
-        <Suggestions data={data.trackedJobs} />
+        <Suggestions data={data.trackedJobs} /> {/* Will eventually switch to a result of an api call or sth */}
 
         <button 
           onClick={handleClearData}

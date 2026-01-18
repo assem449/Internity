@@ -1,5 +1,6 @@
 // src/components/Suggestions.tsx
-import { Internship } from "./Internship";
+// import { Internship } from "./Internship";
+import { InternshipLinked } from "./InternshipLinked";
 
 export interface InternshipSuggestion {
     id: string;
@@ -9,6 +10,7 @@ export interface InternshipSuggestion {
     skillTags: string[];
     salary: string;
     logoUrl?: string;
+    jobUrl?: string;
 }
 
 export interface SuggestionsProps {
@@ -35,7 +37,7 @@ export const Suggestions = ({ className = "", data = [] }: SuggestionsProps) => 
 
             <div className="flex flex-col gap-3 overflow-y-auto pr-1 custom-scrollbar">
                 {data.map((suggestion) => (
-                    <Internship
+                    <InternshipLinked
                         key={suggestion.id}
                         data={suggestion}
                         className="w-full" 

@@ -1,5 +1,3 @@
-// src/services/transformers.ts
-
 import type { InternshipSuggestion } from "../components/Suggestions";
 
 export const deriveAnalytics = (events: any[], jobPostings: Record<string, any>) => {
@@ -13,21 +11,6 @@ export const deriveAnalytics = (events: any[], jobPostings: Record<string, any>)
 export const getRecentEvents = (events: any[]) =>
   [...events].slice(-8).reverse();
 
-// export const getTrackedJobs = (jobPostings: Record<string, any>) =>
-//   Object.values(jobPostings).slice(-5).reverse();
-
-// src/services/transformers.ts
-
-export const mapJobToRecentJobs = (job: any): any => ({
-  id: job.jobId || Math.random().toString(),
-  role: job.title || "Unknown Role",
-  company: job.company || "Unknown Company",
-  logoUrl: job.logoUrl || "", // You might need to scrape this later
-  skillTags: job.skills || ["LinkedIn", "Tracked"], // Fallback tags
-});
-
-// src/services/transformers.ts
-
 export const mapJobToSuggestion = (job: any): InternshipSuggestion => ({
   id: job.jobId || Math.random().toString(),
   company: job.company || "Unknown Company",
@@ -35,7 +18,8 @@ export const mapJobToSuggestion = (job: any): InternshipSuggestion => ({
   location: job.location || "Remote",
   skillTags: job.skills || ["Internship", "Tech"],
   salary: job.salary || "N/A",
-  logoUrl: job.logoUrl 
+  logoUrl: job.logoUrl || "",
+  // jobUrl: job.jobUrl || "", // not sure if url actually exists but adding for future use
 });
 
 export const getTrackedJobs = (jobPostings: Record<string, any>) =>

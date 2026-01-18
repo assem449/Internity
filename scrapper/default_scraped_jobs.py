@@ -44,7 +44,7 @@ def scrape_linkedin_jobs(apify_token: str, search_queries: list, max_results: in
     
     print(f"🔍 Starting LinkedIn job scraper...")
     print(f"📋 Search queries: {search_queries}")
-    
+    ACTOR = "parseforge/linkedin-jobs-scraper"
     for query in search_queries:
         print(f"\n🔎 Scraping jobs for: '{query}'")
         
@@ -52,44 +52,42 @@ def scrape_linkedin_jobs(apify_token: str, search_queries: list, max_results: in
             # Configure the scraper
             # Using the official LinkedIn Jobs Scraper actor
             run_input = {
-                "search": query,
-                "maxResults": max_results,
-                "scrapeJobDetails": True,
+                "searchQuery": query,
+                "location": "Canada",
+                "maxItems": max_results,
             }
-            
+
+            run = client.actor(ACTOR).call(run_input=run_input)
             # Run the actor
             print(f"   ⏳ Running Apify actor...")
-            run = client.actor("hMvNSpz3JnHgl5jkh").call(run_input=run_input)
+            run = client.actor("parseforge/linkedin-jobs-scraper").call(run_input=run_input)
             
             # Fetch results
             job_count = 0
             for item in client.dataset(run["defaultDatasetId"]).iterate_items():
-                # Extract and clean job data
+                url = item.get("url") or item.get("jobUrl") or item.get("link")
+                title = item.get("title") or item.get("positionName") or item.get("jobTitle")
+
+                if not title or not url:
+                    continue
+
                 job = {
-                    "job_id": item.get("id") or item.get("url", "").split("/")[-1] or f"job_{len(all_jobs)}",
-                    "title": item.get("title", "No Title"),
-                    "company": item.get("company", "Unknown Company"),
-                    "description": item.get("description", "No description available"),
-                    "location": item.get("location", "Not specified"),
-                    "salary_range": item.get("salary"),
-                    "employment_type": item.get("employmentType", ""),
-                    "seniority_level": item.get("seniorityLevel", ""),
-                    "industry": item.get("industry", ""),
-                    "url": item.get("url", ""),
-                    "posted_date": item.get("listedAt"),
-                    "scraped_at": datetime.utcnow().isoformat(),
+                    "job_id": item.get("id") or url.split("/")[-1] or f"job_{len(all_jobs)}",
+                    "title": title,
+                    "company": item.get("company") or item.get("companyName") or "Unknown Company",
+                    "location": item.get("location") or item.get("jobLocation") or "Not specified",
+                    "url": url,
                 }
-                
-                # Extract skills
+
                 job["required_skills"] = extract_skills(job["description"])
-                
                 all_jobs.append(job)
+
                 job_count += 1
             
-            print(f"   ✅ Found {job_count} jobs for '{query}'")
+            print(f"Found {job_count} jobs for '{query}'")
             
         except Exception as e:
-            print(f"   ❌ Error scraping '{query}': {str(e)}")
+            print(f"Error scraping '{query}': {str(e)}")
             continue
     
     # Remove duplicates based on job_id
@@ -106,7 +104,14 @@ def scrape_linkedin_jobs(apify_token: str, search_queries: list, max_results: in
 
 def save_jobs(jobs: list):
     """Save jobs to JSON file (same folder as this script)"""
-    output_file = os.path.join(os.path.dirname(__file__), "scraped_jobs.json")
+    output_file = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "backend",
+    "data",
+    "scraped_jobs.json"
+    )
+    output_file = os.path.abspath(output_file)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(jobs, f, indent=2, ensure_ascii=False)
     print(f"💾 Saved jobs to: {output_file}")
@@ -118,23 +123,16 @@ def main():
     apify_token = os.getenv("APIFY_TOKEN")
     
     if not apify_token:
-        print("❌ Error: APIFY_TOKEN environment variable not set")
-        print("💡 Get your token from: https://console.apify.com/account/integrations")
-        print("💡 Set it with: export APIFY_TOKEN='your-token-here'")
+        print("Error: APIFY_TOKEN environment variable not set")
         return
     
     # Define search queries - customize these based on your needs
-    # search_queries = [
-    #     "Python Developer Remote",
-    #     "Machine Learning Engineer",
-    #     "Full Stack Developer",
-    #     "Software Engineer Python",
-    #     "Data Scientist",
-    #     "Backend Developer",
-    # ]
+    search_queries = [
+        "Software Engineer Intern"
+    ]
     
     # Number of results per query (Apify may have limits)
-    search_queries = ["Software Engineer Intern"]
+    # search_queries = ["Software Engineer Intern"]
     max_results_per_query = 20      
     
     print("=" * 60)
@@ -170,6 +168,9 @@ def main():
         print("=" * 60)
     else:
         print("\n❌ No jobs were scraped. Please check your Apify token and try again.")
+    print([j["title"] for j in jobs[:5]])
+    print("TOTAL:", len(jobs))
+
 
 if __name__ == "__main__":
     main()

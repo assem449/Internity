@@ -7,12 +7,14 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'SHOW_APPLICATION_MODAL') {
     console.log('[Internity-ExternalSite] Showing application modal');
-    showApplicationConfirmationModal(request.data.jobId, request.data.externalUrl);
+    // Background sends us the job ID, external URL, and the START timestamp (when user clicked Apply on LinkedIn)
+    showApplicationConfirmationModal(request.data.jobId, request.data.externalUrl, request.data.startTimestamp);
     sendResponse({ status: 'modal_shown' });
   }
 });
 
-function showApplicationConfirmationModal(jobId, externalUrl) {
+function showApplicationConfirmationModal(jobId, externalUrl, startTimestamp) {
+  // startTimestamp = the exact moment they clicked "Apply" on LinkedIn (before coming to this external site)
   // Check if modal already exists
   if (document.getElementById('internity-external-modal')) {
     return;
@@ -120,12 +122,20 @@ function showApplicationConfirmationModal(jobId, externalUrl) {
   // Handle Yes button
   yesBtn.addEventListener('click', () => {
     console.log('[Internity-ExternalSite] User confirmed: Yes');
+    
+    // Calculate total time: from when they clicked Apply on LinkedIn until now
+    // This includes: time on LinkedIn + time navigating + time on this external site
+    const timeSpentMs = startTimestamp ? Date.now() - startTimestamp : null; // Milliseconds
+    const timeSpentSeconds = timeSpentMs ? Math.round(timeSpentMs / 1000) : null; // Convert to seconds
+    
+    console.log('[Internity-ExternalSite] Time spent:', timeSpentSeconds, 'seconds');
     chrome.runtime.sendMessage({
       type: 'RECORD_APPLICATION_STATUS',
       data: {
         jobId: jobId,
         status: 'APPLIED',
-        externalUrl: externalUrl
+        externalUrl: externalUrl,
+        timeSpentSeconds: timeSpentSeconds // How many seconds total from Apply click to Yes click
       }
     }, (response) => {
       console.log('[Internity-ExternalSite] Response:', response);
@@ -136,12 +146,19 @@ function showApplicationConfirmationModal(jobId, externalUrl) {
   // Handle No button
   noBtn.addEventListener('click', () => {
     console.log('[Internity-ExternalSite] User confirmed: No, Not Yet');
+    
+    // Same calculation: total time from Apply button to No button
+    const timeSpentMs = startTimestamp ? Date.now() - startTimestamp : null;
+    const timeSpentSeconds = timeSpentMs ? Math.round(timeSpentMs / 1000) : null;
+    
+    console.log('[Internity-ExternalSite] Time spent:', timeSpentSeconds, 'seconds');
     chrome.runtime.sendMessage({
       type: 'RECORD_APPLICATION_STATUS',
       data: {
         jobId: jobId,
         status: 'SKIPPED',
-        externalUrl: externalUrl
+        externalUrl: externalUrl,
+        timeSpentSeconds: timeSpentSeconds
       }
     }, (response) => {
       console.log('[Internity-ExternalSite] Response:', response);

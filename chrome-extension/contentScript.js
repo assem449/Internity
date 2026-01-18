@@ -8,17 +8,145 @@ const log = (msg, data) => {
   if (DEBUG) console.log(`[Internity] ${msg}`, data || "");
 };
 
+// Global variables for tracking state
+let jobViewTimeout = null; // Timer for delaying job view logging
+let currentJobStartTime = null; // When did the user first land on this job? (saves timestamp like 1705549200000)
+let currentJobId = null; // What job are we currently looking at? (saves job ID like "12345")
+
+let scrollDepthTracker = null;
+let scrollContainerEl = null;
+let maxScrollDepth = 0;
+let scrollMilestones = { 25: false, 50: false, 70: false, 90: false, 100: false };
+
+function findRealScroller(startEl) {
+  const descendants = Array.from(startEl.querySelectorAll("div"));
+  for (const el of [startEl, ...descendants]) {
+    const s = getComputedStyle(el);
+    if ((s.overflowY === "auto" || s.overflowY === "scroll") &&
+        el.scrollHeight > el.clientHeight + 150 &&
+        el.clientHeight > 200) {
+      return el;
+    }
+  }
+  let el = startEl;
+  while (el && el !== document.body) {
+    const s = getComputedStyle(el);
+    if ((s.overflowY === "auto" || s.overflowY === "scroll") &&
+        el.scrollHeight > el.clientHeight + 150) {
+      return el;
+    }
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function setupScrollDepthTracking(jobId) {
+  log("🔍 setupScrollDepthTracking called for job:", jobId);
+
+  // Remove old listener from the exact element we used before
+  if (scrollDepthTracker && scrollContainerEl) {
+    scrollContainerEl.removeEventListener("scroll", scrollDepthTracker);
+    log("🗑️ Removed old scroll listener");
+  }
+  scrollContainerEl = null;
+
+  // Reset per-job state
+  maxScrollDepth = 0;
+  scrollMilestones = { 25: false, 50: false, 70: false, 90: false, 100: false };
+
+  const selectors = [
+    ".jobs-details__main-content",
+    ".scaffold-layout__detail",
+    ".jobs-search__job-details--container",
+  ];
+
+  let container = null;
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el) {
+      container = el;
+      log("✅ Found container with selector:", selector);
+      break;
+    }
+  }
+
+  if (!container) {
+    log("⚠️ Could not find job details container. Retrying...");
+    setTimeout(() => setupScrollDepthTracking(jobId), 800);
+    return;
+  }
+
+  // Resolve the actual scrollable element
+  const realScroller = findRealScroller(container);
+  if (!realScroller) {
+    log("⚠️ Found container but not scrollable yet. Retrying...");
+    setTimeout(() => setupScrollDepthTracking(jobId), 800);
+    return;
+  }
+
+  scrollContainerEl = realScroller;
+
+  // If still not scrollable, retry
+  const scrollableHeight = scrollContainerEl.scrollHeight - scrollContainerEl.clientHeight;
+  if (scrollableHeight <= 50) {
+    log("⚠️ Scroller not ready (no scrollable height). Retrying...");
+    setTimeout(() => setupScrollDepthTracking(jobId), 800);
+    return;
+  }
+
+  log("📦 Using scroller:", scrollContainerEl);
+  log("📏 scrollHeight:", scrollContainerEl.scrollHeight, "clientHeight:", scrollContainerEl.clientHeight);
+
+  scrollDepthTracker = () => {
+    const el = scrollContainerEl;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 0) return;
+
+    const pct = Math.round((el.scrollTop / max) * 100);
+
+    if (pct > maxScrollDepth) {
+      maxScrollDepth = pct;
+      log(`📊 Scroll depth: ${pct}% (max: ${maxScrollDepth}%)`);
+    }
+
+    [25, 50, 70, 90, 100].forEach((m) => {
+      if (maxScrollDepth >= m && !scrollMilestones[m]) {
+        scrollMilestones[m] = true;
+        log(`🎯 MILESTONE REACHED: ${m}%`);
+
+        chrome.runtime.sendMessage({
+          type: "SCROLL_MILESTONE",
+          data: {
+            jobId,
+            milestone: m,
+            timestamp: Date.now(),
+            maxScrollDepth,
+          },
+        });
+      }
+    });
+  };
+
+  scrollContainerEl.addEventListener("scroll", scrollDepthTracker, { passive: true });
+  log("✓ Scroll depth tracking active");
+}
+
+
+/**
+ * Get current scroll depth data for a job
+ */
+function getScrollDepthData() {
+  return {
+    maxScrollDepth: maxScrollDepth,
+    milestonesReached: Object.keys(scrollMilestones).filter(k => scrollMilestones[k]).map(Number)
+  };
+}
+
 // Detect if we're on a LinkedIn job posting page
 function detectJobPostingPage() {
   const url = location.href;
   
-  // LinkedIn job posting URL patterns:
-  // https://www.linkedin.com/jobs/view/[ID]/
-  // https://www.linkedin.com/jobs/search/?...
-  // https://www.linkedin.com/jobs/collections/?currentJobId=[ID]
-  // Any LinkedIn jobs page with currentJobId parameter
-  // https://www.linkedin.com/jobs/
-  
+  // LinkedIn job URL patterns
   const jobViewPattern = /\/jobs\/view\/\d+/;
   const currentJobIdPattern = /currentJobId=(\d+)/;
   const jobSearchPattern = /\/jobs\/search/;
@@ -31,7 +159,6 @@ function detectJobPostingPage() {
   const isJobCollections = jobCollectionsPattern.test(url);
   const isJobsPage = jobsPagePattern.test(url);
   
-  // If we have a currentJobId, treat it as a job detail view
   const isJobDetail = isJobView || hasCurrentJobId;
   
   return {
@@ -45,7 +172,7 @@ function detectJobPostingPage() {
   };
 }
 
-// Extract job posting details from the page and store them
+// Extract job posting details from the page
 function extractJobPostingDetails() {
   const details = {
     title: null,
@@ -59,7 +186,7 @@ function extractJobPostingDetails() {
   
   const url = location.href;
   
-  // Extract Job ID from URL - try both /jobs/view/[ID] and currentJobId parameter
+  // Extract Job ID from URL
   let jobIdMatch = url.match(/\/jobs\/view\/(\d+)/);
   if (jobIdMatch) {
     details.jobId = jobIdMatch[1];
@@ -72,12 +199,20 @@ function extractJobPostingDetails() {
   
   log("Extraction attempt - JobId:", details.jobId);
   
-  // Try to find the job details container first to limit our search
+  // Find the job details container (LinkedIn uses different selectors)
   const jobContainer = document.querySelector('[data-job-details-container]') || 
                        document.querySelector('.jobs-search__job-details-container') ||
                        document.querySelector('.job-view-layout') ||
                        document.querySelector('.scaffold-layout__detail') ||
                        document;
+  
+  // Only extract if we have a valid container
+  const hasValidContainer = jobContainer !== document;
+  
+  if (!hasValidContainer) {
+    log("⏳ Job details container not ready yet");
+    return details;
+  }
   
   // Job title selectors - look for the main heading in the job details
   let titleEl = jobContainer.querySelector('h2[data-test-id*="job-title"]');
@@ -209,7 +344,6 @@ if (pageInfo.isLinkedInJobs) {
 
 // Track Apply button clicks
 function setupApplyButtonTracking() {
-  // LinkedIn's apply button selectors
   const applyButtonSelectors = [
     'button[aria-label*="Easy Apply"]',
     'button[aria-label*="Apply"]',
@@ -219,7 +353,6 @@ function setupApplyButtonTracking() {
   
   let applyButton = null;
   
-  // Try each selector
   for (const selector of applyButtonSelectors) {
     applyButton = document.querySelector(selector);
     if (applyButton) {
@@ -230,7 +363,6 @@ function setupApplyButtonTracking() {
   
   if (!applyButton) {
     log("⚠️ Could not find Apply button - will retry in 1000ms");
-    // Retry after 1 second
     setTimeout(() => {
       setupApplyButtonTracking();
     }, 1000);
@@ -238,7 +370,7 @@ function setupApplyButtonTracking() {
   }
   
   if (applyButton && !applyButton.hasListener) {
-    applyButton.hasListener = true; // Flag to avoid duplicate listeners
+    applyButton.hasListener = true;
     
     applyButton.addEventListener('click', () => {
       const url = location.href;
@@ -247,18 +379,18 @@ function setupApplyButtonTracking() {
       
       if (jobId) {
         log("✅ Apply button clicked for job:", jobId);
-        log("👁️ User heading to external application page - timer will start there");
+        log("👁️ User heading to external application page - timer will continue from when they first viewed the job");
         
-        // Store the job ID and timestamp in chrome storage
-        // The background worker will monitor for navigation and start the timer
+        // Store job ID and timestamp for tracking
+        // Use currentJobStartTime for total time tracking (LinkedIn + external site)
         chrome.storage.local.set({
           lastApplyJobId: jobId,
-          lastApplyTimestamp: Date.now(),
+          lastApplyTimestamp: currentJobStartTime || Date.now(),
           lastApplyUrl: url,
           expectingExternalNavigation: true
         });
         
-        // Notify background to start Easy Apply timeout monitoring
+        // Notify background to start Easy Apply timeout
         chrome.runtime.sendMessage(
           {
             type: "START_EASY_APPLY_TIMEOUT",
@@ -281,10 +413,9 @@ function setupApplyButtonTracking() {
   }
 }
 
-// Call setup initially
 setupApplyButtonTracking();
 
-// Also monitor for new apply buttons (LinkedIn loads content dynamically)
+// Monitor for new apply buttons (LinkedIn loads content dynamically)
 const setupApplyButtonObserver = () => {
   const observer = new MutationObserver(() => {
     setupApplyButtonTracking();
@@ -300,11 +431,58 @@ const setupApplyButtonObserver = () => {
 
 setupApplyButtonObserver();
 
+// Initialize job view logging on initial page load
+if (pageInfo.isJobDetail) {
+  log("⏳ Initial load is job detail page - scheduling 15-second job view timer...");
+  
+  // Extract job ID and start the stopwatch for this job
+  const jobIdMatch = pageInfo.url.match(/\/jobs\/view\/(\d+)/) || pageInfo.url.match(/currentJobId=(\d+)/);
+  if (jobIdMatch) {
+    currentJobId = jobIdMatch[1]; // Save which job we're looking at
+    currentJobStartTime = Date.now(); // Press START on the stopwatch (saves current time in milliseconds)
+    log("⏱️ Started tracking job:", currentJobId, "at", new Date(currentJobStartTime).toLocaleTimeString());
+    
+    // Setup scroll depth tracking for this job
+    setTimeout(() => setupScrollDepthTracking(currentJobId), 1500);
+  }
+  
+  jobViewTimeout = setTimeout(() => {
+    log("✓ 15 seconds elapsed - logging job view");
+    
+    const jobDetails = extractJobPostingDetails();
+    log("Job Posting Details:", jobDetails);
+    
+    if (jobDetails.jobId && jobDetails.title) {
+      // Include scroll depth data in job view event
+      const scrollData = getScrollDepthData();
+      
+      chrome.runtime.sendMessage(
+        {
+          type: "JOB_PAGE_VIEW",
+          data: {
+            ...jobDetails,
+            scrollDepth: scrollData.maxScrollDepth,
+            scrollMilestones: scrollData.milestonesReached
+          },
+          timestamp: Date.now()
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            log("❌ Error sending message:", chrome.runtime.lastError);
+          } else {
+            log("✓ Job view logged after 10 seconds", response);
+          }
+        }
+      );
+    }
+    jobViewTimeout = null;
+  }, 15000);
+}
+
 // Monitor for URL changes (LinkedIn uses client-side routing)
 let lastUrl = location.href;
 let lastProcessedUrl = null;
 let processingTimeout = null;
-let jobViewTimeout = null; // Timer for delaying job view logging
 
 const checkUrlChange = () => {
   if (location.href !== lastUrl) {
@@ -342,6 +520,13 @@ const checkUrlChange = () => {
           const jobIdMatch = lastProcessedUrl.match(/\/jobs\/view\/(\d+)/) || lastProcessedUrl.match(/currentJobId=(\d+)/);
           if (jobIdMatch) {
             currentJobId = jobIdMatch[1];
+            // Press RESET and START on the stopwatch for this new job
+            // This happens when you click a different job in the list
+            currentJobStartTime = Date.now(); // Save the exact moment we opened this new job
+            log("⏱️ Navigated to new job:", currentJobId);
+            
+            // Setup scroll depth tracking for this job
+            setTimeout(() => setupScrollDepthTracking(currentJobId), 1500);
           }
         }
         
@@ -370,7 +555,7 @@ const checkUrlChange = () => {
             setupApplyButtonTracking();
           }, 1000);
           
-          // Set up a timer to log job view after 25 seconds
+          // Wait longer before logging job view to ensure container is loaded
           log("⏳ Waiting 10 seconds before logging job view...");
           
           jobViewTimeout = setTimeout(() => {
@@ -380,24 +565,31 @@ const checkUrlChange = () => {
             const jobDetails = extractJobPostingDetails();
             log("Job Posting Details:", jobDetails);
             
-            if (jobDetails.jobId) {
+            if (jobDetails.jobId && jobDetails.title) {
+              // Include scroll depth data in job view event
+              const scrollData = getScrollDepthData();
+              
               chrome.runtime.sendMessage(
                 {
                   type: "JOB_PAGE_VIEW",
-                  data: jobDetails,
+                  data: {
+                    ...jobDetails,
+                    scrollDepth: scrollData.maxScrollDepth,
+                    scrollMilestones: scrollData.milestonesReached
+                  },
                   timestamp: Date.now()
                 },
                 (response) => {
                   if (chrome.runtime.lastError) {
                     log("❌ Error sending message:", chrome.runtime.lastError);
                   } else {
-                    log("✓ Job view logged after 10 seconds", response);
+                    log("✓ Job view logged after 15 seconds", response);
                   }
                 }
               );
             }
             jobViewTimeout = null;
-          }, 10000); // 10 second delay
+          }, 15000);
         }
       } else {
         log("❌ Not a LinkedIn Jobs page");
@@ -515,12 +707,19 @@ function showEasyApplyConfirmationModal(jobId) {
   // Handle Yes button
   yesBtn.addEventListener('click', () => {
     log('✅ Easy Apply: User confirmed Yes');
+    
+    // Calculate how long they spent looking at this job
+    // It's like checking the stopwatch: current time - start time = elapsed time
+    const timeSpentMs = currentJobStartTime ? Date.now() - currentJobStartTime : null; // Time in milliseconds
+    const timeSpentSeconds = timeSpentMs ? Math.round(timeSpentMs / 1000) : null; // Convert to seconds (divide by 1000)
+    
     chrome.runtime.sendMessage({
       type: 'RECORD_APPLICATION_STATUS',
       data: {
         jobId: jobId,
         status: 'APPLIED',
-        externalUrl: 'easy_apply_on_linkedin'
+        externalUrl: 'easy_apply_on_linkedin',
+        timeSpentSeconds: timeSpentSeconds // Send how many seconds they spent on this job
       }
     }, (response) => {
       log('Easy Apply response recorded:', response);
@@ -531,12 +730,18 @@ function showEasyApplyConfirmationModal(jobId) {
   // Handle No button
   noBtn.addEventListener('click', () => {
     log('❌ Easy Apply: User confirmed No');
+    
+    // Same calculation: how long did they look before deciding "no"?
+    const timeSpentMs = currentJobStartTime ? Date.now() - currentJobStartTime : null;
+    const timeSpentSeconds = timeSpentMs ? Math.round(timeSpentMs / 1000) : null;
+    
     chrome.runtime.sendMessage({
       type: 'RECORD_APPLICATION_STATUS',
       data: {
         jobId: jobId,
         status: 'SKIPPED',
-        externalUrl: 'easy_apply_on_linkedin'
+        externalUrl: 'easy_apply_on_linkedin',
+        timeSpentSeconds: timeSpentSeconds
       }
     }, (response) => {
       log('Easy Apply response recorded:', response);

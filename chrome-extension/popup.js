@@ -2,6 +2,7 @@
  * Internity Popup - Display tracked events and statistics
  */
 
+// Get references to HTML elements
 const eventCount = document.getElementById("eventCount");
 const jobViewCount = document.getElementById("jobViewCount");
 const uniqueJobCount = document.getElementById("uniqueJobCount");
@@ -9,7 +10,7 @@ const recentEvents = document.getElementById("recentEvents");
 const jobsList = document.getElementById("jobsList");
 const clearBtn = document.getElementById("clear");
 
-// Add status indicator
+// Add status indicator at top of popup
 const statusDiv = document.createElement("div");
 statusDiv.id = "page-status";
 statusDiv.style.cssText = `
@@ -42,6 +43,7 @@ appStatusDiv.style.cssText = `
 `;
 document.querySelector(".container").insertBefore(appStatusDiv, document.querySelector(".stats"));
 
+// Format timestamps into readable time (HH:MM)
 function formatTime(timestamp) {
   const date = new Date(timestamp);
   const hours = date.getHours().toString().padStart(2, "0");
@@ -49,6 +51,7 @@ function formatTime(timestamp) {
   return `${hours}:${minutes}`;
 }
 
+// Update page status indicator
 function updatePageStatus() {
   chrome.storage.local.get(["currentPageStatus", "events"], (res) => {
     const status = res.currentPageStatus;
@@ -62,7 +65,7 @@ function updatePageStatus() {
         statusDiv.style.borderLeft = "4px solid #0a66c2";
         statusDiv.innerHTML = '🎯 <span>Currently viewing a job posting</span>';
         
-        // Check if applied to this job
+        // Check if already applied to this job
         if (status.currentJobId) {
           const hasApplied = events.some(e => 
             e.type === "APPLIED" && e.jobId === status.currentJobId
@@ -92,6 +95,7 @@ function updatePageStatus() {
   });
 }
 
+// Main render function - updates all popup content
 function render() {
   chrome.storage.local.get(["events", "jobPostings"], (res) => {
     const events = res.events || [];
@@ -142,7 +146,7 @@ function render() {
         .join("");
     }
     
-    // Show tracked jobs
+    // Show tracked jobs (last 5)
     const jobArray = Object.values(jobPostings);
     if (jobArray.length === 0) {
       jobsList.innerHTML = '<p class="empty">No jobs tracked yet</p>';
@@ -165,11 +169,11 @@ function render() {
         .join("");
     }
     
-    // Update page status
     updatePageStatus();
   });
 }
 
+// Clear all data
 clearBtn.addEventListener("click", () => {
   if (confirm("Clear all tracked events and data?")) {
     chrome.storage.local.set(
@@ -185,7 +189,7 @@ clearBtn.addEventListener("click", () => {
   }
 });
 
-// Add test button to verify extension works
+// Add test button for debugging
 function addTestButton() {
   const testBtn = document.createElement("button");
   testBtn.id = "test-btn";
@@ -214,12 +218,10 @@ function addTestButton() {
       seniority: "Senior"
     };
     
-    // Record test event
     chrome.storage.local.get(["events", "jobPostings"], (res) => {
       const events = res.events || [];
       const jobPostings = res.jobPostings || {};
       
-      // Add test view event
       events.push({
         type: "JOB_VIEW",
         jobId: testJob.jobId,
@@ -230,7 +232,6 @@ function addTestButton() {
         timestamp: Date.now()
       });
       
-      // Add test job to postings
       jobPostings[testJob.jobId] = {
         ...testJob,
         firstViewedAt: Date.now(),
@@ -247,9 +248,8 @@ function addTestButton() {
   clearBtn.parentNode.insertBefore(testBtn, clearBtn);
 }
 
-// Initial render
 render();
 addTestButton();
 
-// Refresh stats every 2 seconds
+// Auto-refresh every 2 seconds
 setInterval(render, 2000);

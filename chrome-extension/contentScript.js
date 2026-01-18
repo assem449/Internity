@@ -577,7 +577,7 @@ const checkUrlChange = () => {
             
             // Extract and log job view
             const jobDetails = extractJobPostingDetails();
-            log("Job Posting Details:", jobDetails);
+            
             
             if (jobDetails.jobId && jobDetails.title) {
               // Include scroll depth data in job view event
@@ -601,10 +601,23 @@ const checkUrlChange = () => {
                   }
                 }
               );
+               fetch('http://localhost:5000/job-details', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(jobDetails)
+              })
+              .then(response => response.json())
+              .then(data => console.log('Python backend response:', data))
+              .catch(error => console.error('Error:', error));
             }
             jobViewTimeout = null;
-          }, 10000);
+             
+              
+
+          }, 10000); // 10 second delay
+        
         }
+        
       } else {
         log("❌ Not a LinkedIn Jobs page");
       }

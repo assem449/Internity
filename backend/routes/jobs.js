@@ -70,6 +70,7 @@ router.post('/bulk', async (req, res) => {
 
     for (const job of jobs) {
       const {
+        job_id,
         job_url,
         title,
         company,
@@ -112,6 +113,7 @@ router.post('/bulk', async (req, res) => {
 
       const result = await db.query(query, [
         source,
+        job_id,
         job_url,
         title,
         company || null,

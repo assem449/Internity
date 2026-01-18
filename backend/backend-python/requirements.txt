@@ -1,0 +1,8 @@
+Flask
+requests
+jsonify
+flask-cors
+dotenv
+apify-client
+google-genai
+google

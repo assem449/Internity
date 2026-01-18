@@ -60,28 +60,6 @@ services:
     command: npm run dev
     restart: unless-stopped
 
-  # Recommender Service (Python FastAPI)
-  recommender:
-    build:
-      context: ./recommender
-      dockerfile: Dockerfile
-    container_name: internity-recommender
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/internity}
-      PORT: ${RECOMMENDER_PORT:-8000}
-      PYTHON_ENV: ${PYTHON_ENV:-development}
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./recommender:/app
-    networks:
-      - internity-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    restart: unless-stopped
-
 networks:
   internity-network:
     driver: bridge

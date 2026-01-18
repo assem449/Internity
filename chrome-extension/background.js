@@ -279,11 +279,12 @@ function handleUserAction(actionData, pageUrl, timestamp) {
  * Record application status from Yes/No confirmation popup
  */
 function recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds, scrollDepth = 0) {
-  // Get the viewed flag from jobPostings storage
+  // Get the viewed flag and scroll depth from jobPostings storage
   chrome.storage.local.get(["jobPostings"], (res) => {
     const postings = res.jobPostings || {};
     const jobPosting = postings[jobId] || {};
     const viewed = jobPosting.viewed || 0;
+    const maxScrollDepth = jobPosting.maxScrollDepth || jobPosting.scrollDepth || 0;
     
     const event = {
       type: status,
@@ -291,7 +292,7 @@ function recordApplicationStatus(jobId, status, externalUrl, timeSpentSeconds, s
       pageUrl: externalUrl || 'external_application_site',
       timestamp: Date.now(),
       timeSpentSeconds: timeSpentSeconds,
-      scrollDepthPercent: scrollDepth,
+      scrollDepthPercent: maxScrollDepth,
       applied: status === 'APPLIED' ? 1 : 0,
       viewed: viewed,
       metadata: {

@@ -20,9 +20,10 @@ chrome.storage.local.get(['lastApplyJobId', 'externalApplicationUrl'], (result) 
 document.getElementById('yes-btn').addEventListener('click', () => {
   log("User clicked: Yes, I Applied");
   
-  chrome.storage.local.get(['lastApplyJobId', 'externalApplicationUrl'], (result) => {
+  chrome.storage.local.get(['lastApplyJobId', 'externalApplicationUrl', 'lastApplyScrollDepth'], (result) => {
     const jobId = result.lastApplyJobId;
     const externalUrl = result.externalApplicationUrl;
+    const scrollDepth = result.lastApplyScrollDepth || 0;
     
     // Send message to background worker to record the status
     chrome.runtime.sendMessage({
@@ -30,7 +31,8 @@ document.getElementById('yes-btn').addEventListener('click', () => {
       data: {
         jobId: jobId,
         status: 'APPLIED',
-        externalUrl: externalUrl
+        externalUrl: externalUrl,
+        scrollDepth: scrollDepth
       }
     }, (response) => {
       log("Response from background:", response);
@@ -43,9 +45,10 @@ document.getElementById('yes-btn').addEventListener('click', () => {
 document.getElementById('no-btn').addEventListener('click', () => {
   log("User clicked: No, Not Yet");
   
-  chrome.storage.local.get(['lastApplyJobId', 'externalApplicationUrl'], (result) => {
+  chrome.storage.local.get(['lastApplyJobId', 'externalApplicationUrl', 'lastApplyScrollDepth'], (result) => {
     const jobId = result.lastApplyJobId;
     const externalUrl = result.externalApplicationUrl;
+    const scrollDepth = result.lastApplyScrollDepth || 0;
     
     // Send message to background worker to record the status
     chrome.runtime.sendMessage({
@@ -53,7 +56,8 @@ document.getElementById('no-btn').addEventListener('click', () => {
       data: {
         jobId: jobId,
         status: 'SKIPPED',
-        externalUrl: externalUrl
+        externalUrl: externalUrl,
+        scrollDepth: scrollDepth
       }
     }, (response) => {
       log("Response from background:", response);
